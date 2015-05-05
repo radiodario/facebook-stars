@@ -1,0 +1,7 @@
+{
+  "name": "facebook-stars",
+  "version": "0.0.0",
+  "dependencies": {
+    "three.js": "~0.70.0"
+  }
+}

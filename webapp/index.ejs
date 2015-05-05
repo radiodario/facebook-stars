@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>facebook-stars</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<script id="vertexShader" type="x-shader/x-vertex">
+  attribute vec3 color;
+  attribute float texIndex;
+
+  const float SpriteTextureSize = 64.0;
+  const float SpritesPerRow = 32.0;
+
+  varying vec2 TextureSize;
+  varying vec2 TextureCoord;
+
+  void main() {
+      vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+
+      // calculate texturecoordinate
+      float col = mod(texIndex, SpritesPerRow);
+      float row = floor(texIndex / SpritesPerRow);
+
+      // where in the texture to start ()
+      TextureCoord = vec2((col*SpriteTextureSize)/2048., (row*SpriteTextureSize)/2048.);
+      // TextureCoord = vec2(0., 0.);
+      TextureSize = vec2(SpriteTextureSize/2048., SpriteTextureSize/2048.);
+
+      gl_Position = projectionMatrix * mvPosition;
+      gl_PointSize = 64.;
+  }
+</script>
+<script id="fragmentShader" type="x-shader/x-fragment">
+  uniform sampler2D texture;
+
+  varying vec2 TextureCoord;
+  varying vec2 TextureSize;
+
+  void main() {
+
+      vec2 realTexCoord = TextureCoord + (TextureSize * gl_PointCoord);
+      vec4 fragColor = texture2D(texture, realTexCoord);
+
+      gl_FragColor = fragColor;
+  }
+</script>
+<div id="canvas"></div>
+<script id="live-reload" src="http://localhost:35729/livereload.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
