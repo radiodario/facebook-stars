@@ -2,3 +2,4 @@ images
 node_modules
 webapp/node_modules
 webapp/bower_components
+webapp/.grunt

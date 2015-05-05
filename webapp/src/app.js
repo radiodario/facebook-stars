@@ -1,4 +1,5 @@
 var THREE = require('three.js');
+require('./anaglyph')(THREE);
 var users = require('./users').users;
 
 function World() {
@@ -28,15 +29,20 @@ World.prototype.setupEnvironment = function () {
       alpha: false
   });
   this.renderer.setSize(window.innerWidth, window.innerHeight);
-  this.renderer.setClearColor(0x000000, 0);
+  this.renderer.setClearColor(0xffffff, 0);
   this.renderer.domElement.id = "canvas";
   this.renderer.context.getProgramInfoLog = function () {
       return ''
   }; // muzzle
+
+  // effect = new THREE.AnaglyphEffect( this.renderer );
+  // effect.setSize( window.innerWidth, window.innerHeight );
+
+
   document.body.appendChild(this.renderer.domElement);
 
-  this.camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 1, 1000);
-  this.camera.position.set(0, 0, 50);
+  this.camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 1, 1500);
+  this.camera.position.set(0, 0, 500);
   this.scene = new THREE.Scene();
 
   this.container = new THREE.Object3D();
@@ -76,11 +82,18 @@ World.prototype.setupEnvironment = function () {
 
   var geometry = new THREE.Geometry();
 
+  var zPos = -1000;
+
+  var inc = 1500 / particleCount;
+
   for (var i = 0; i < particleCount; i++) {
       geometry.vertices.push(new THREE.Vector3(
-      (Math.random() - 0.5) * 50, (Math.random() - 0.5) * 50, (Math.random() - 0.5) * 50));
+        (Math.random() - 0.5) * 1000,
+        (Math.random() - 0.5) * 1000,
+        (Math.random() - 0.5) * 1000));
       attributes.texIndex.value.push(i);
       attributes.color.value.push(new THREE.Color(0xffffff));
+      zPos += inc;
   }
 
   var particles = new THREE.PointCloud(geometry, material);
@@ -90,6 +103,11 @@ World.prototype.setupEnvironment = function () {
 
 World.prototype.render = function () {
     this.container.rotation.y += 0.001;
+    // for (var i = 0; i < this.container.children.length; i++ ) {
+    //   this.container.children[i].position.z += 1;
+    //   if (this.container.children[i].position.z > 500)
+    //     this.container.children[i].position.z -= 1500;
+    // }
     this.renderer.render(this.scene, this.camera);
 };
 
