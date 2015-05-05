@@ -822,7 +822,186 @@ THREE.MorphBlendMesh.prototype.update=function(a){for(var b=0,c=this.animationsL
 f!==d.currentFrame&&(this.morphTargetInfluences[d.lastFrame]=0,this.morphTargetInfluences[d.currentFrame]=1*g,this.morphTargetInfluences[f]=0,d.lastFrame=d.currentFrame,d.currentFrame=f);e=d.time%e/e;d.directionBackwards&&(e=1-e);this.morphTargetInfluences[d.currentFrame]=e*g;this.morphTargetInfluences[d.lastFrame]=(1-e)*g}}};
 
 },{}],2:[function(require,module,exports){
+/**
+ * @author mrdoob / http://mrdoob.com/
+ * @author marklundin / http://mark-lundin.com/
+ * @author alteredq / http://alteredqualia.com/
+ */
+module.exports = function(THREE) {
+  THREE.AnaglyphEffect = function ( renderer, width, height ) {
+
+  var eyeRight = new THREE.Matrix4();
+  var eyeLeft = new THREE.Matrix4();
+  var focalLength = 125;
+  var _aspect, _near, _far, _fov;
+
+  var _cameraL = new THREE.PerspectiveCamera();
+  _cameraL.matrixAutoUpdate = false;
+
+  var _cameraR = new THREE.PerspectiveCamera();
+  _cameraR.matrixAutoUpdate = false;
+
+  var _camera = new THREE.OrthographicCamera( -1, 1, 1, - 1, 0, 1 );
+
+  var _scene = new THREE.Scene();
+
+  var _params = { minFilter: THREE.LinearFilter, magFilter: THREE.NearestFilter, format: THREE.RGBAFormat };
+
+  if ( width === undefined ) width = 512;
+  if ( height === undefined ) height = 512;
+
+  var _renderTargetL = new THREE.WebGLRenderTarget( width, height, _params );
+  var _renderTargetR = new THREE.WebGLRenderTarget( width, height, _params );
+
+  var _material = new THREE.ShaderMaterial( {
+
+    uniforms: {
+
+      "mapLeft": { type: "t", value: _renderTargetL },
+      "mapRight": { type: "t", value: _renderTargetR }
+
+    },
+
+    vertexShader: [
+
+      "varying vec2 vUv;",
+
+      "void main() {",
+
+      " vUv = vec2( uv.x, uv.y );",
+      " gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );",
+
+      "}"
+
+    ].join("\n"),
+
+    fragmentShader: [
+
+      "uniform sampler2D mapLeft;",
+      "uniform sampler2D mapRight;",
+      "varying vec2 vUv;",
+
+      "void main() {",
+
+      " vec4 colorL, colorR;",
+      " vec2 uv = vUv;",
+
+      " colorL = texture2D( mapLeft, uv );",
+      " colorR = texture2D( mapRight, uv );",
+
+        // http://3dtv.at/Knowhow/AnaglyphComparison_en.aspx
+
+      " gl_FragColor = vec4( colorL.g * 0.7 + colorL.b * 0.3, colorR.g, colorR.b, colorL.a + colorR.a ) * 1.1;",
+
+      "}"
+
+    ].join("\n")
+
+  } );
+
+  var mesh = new THREE.Mesh( new THREE.PlaneBufferGeometry( 2, 2 ), _material );
+  _scene.add( mesh );
+
+  this.setSize = function ( width, height ) {
+
+    if ( _renderTargetL ) _renderTargetL.dispose();
+    if ( _renderTargetR ) _renderTargetR.dispose();
+    _renderTargetL = new THREE.WebGLRenderTarget( width, height, _params );
+    _renderTargetR = new THREE.WebGLRenderTarget( width, height, _params );
+
+    _material.uniforms[ "mapLeft" ].value = _renderTargetL;
+    _material.uniforms[ "mapRight" ].value = _renderTargetR;
+
+    renderer.setSize( width, height );
+
+  };
+
+  /*
+   * Renderer now uses an asymmetric perspective projection
+   * (http://paulbourke.net/miscellaneous/stereographics/stereorender/).
+   *
+   * Each camera is offset by the eye seperation and its projection matrix is
+   * also skewed asymetrically back to converge on the same projection plane.
+   * Added a focal length parameter to, this is where the parallax is equal to 0.
+   */
+
+  this.render = function ( scene, camera ) {
+
+    scene.updateMatrixWorld();
+
+    if ( camera.parent === undefined ) camera.updateMatrixWorld();
+
+    var hasCameraChanged = ( _aspect !== camera.aspect ) || ( _near !== camera.near ) || ( _far !== camera.far ) || ( _fov !== camera.fov );
+
+    if ( hasCameraChanged ) {
+
+      _aspect = camera.aspect;
+      _near = camera.near;
+      _far = camera.far;
+      _fov = camera.fov;
+
+      var projectionMatrix = camera.projectionMatrix.clone();
+      var eyeSep = focalLength / 30 * 0.5;
+      var eyeSepOnProjection = eyeSep * _near / focalLength;
+      var ymax = _near * Math.tan( THREE.Math.degToRad( _fov * 0.5 ) );
+      var xmin, xmax;
+
+      // translate xOffset
+
+      eyeRight.elements[12] = eyeSep;
+      eyeLeft.elements[12] = -eyeSep;
+
+      // for left eye
+
+      xmin = -ymax * _aspect + eyeSepOnProjection;
+      xmax = ymax * _aspect + eyeSepOnProjection;
+
+      projectionMatrix.elements[0] = 2 * _near / ( xmax - xmin );
+      projectionMatrix.elements[8] = ( xmax + xmin ) / ( xmax - xmin );
+
+      _cameraL.projectionMatrix.copy( projectionMatrix );
+
+      // for right eye
+
+      xmin = -ymax * _aspect - eyeSepOnProjection;
+      xmax = ymax * _aspect - eyeSepOnProjection;
+
+      projectionMatrix.elements[0] = 2 * _near / ( xmax - xmin );
+      projectionMatrix.elements[8] = ( xmax + xmin ) / ( xmax - xmin );
+
+      _cameraR.projectionMatrix.copy( projectionMatrix );
+
+    }
+
+    _cameraL.matrixWorld.copy( camera.matrixWorld ).multiply( eyeLeft );
+    _cameraL.position.copy( camera.position );
+    _cameraL.near = camera.near;
+    _cameraL.far = camera.far;
+
+    renderer.render( scene, _cameraL, _renderTargetL, true );
+
+    _cameraR.matrixWorld.copy( camera.matrixWorld ).multiply( eyeRight );
+    _cameraR.position.copy( camera.position );
+    _cameraR.near = camera.near;
+    _cameraR.far = camera.far;
+
+    renderer.render( scene, _cameraR, _renderTargetR, true );
+
+    renderer.render( _scene, _camera );
+
+  };
+
+  this.dispose = function() {
+    if ( _renderTargetL ) _renderTargetL.dispose();
+    if ( _renderTargetR ) _renderTargetR.dispose();
+  }
+
+};
+}
+
+},{}],3:[function(require,module,exports){
 var THREE = require("./../bower_components/three.js/three.min.js");
+require('./anaglyph')(THREE);
 var users = require('./users').users;
 
 function World() {
@@ -852,15 +1031,20 @@ World.prototype.setupEnvironment = function () {
       alpha: false
   });
   this.renderer.setSize(window.innerWidth, window.innerHeight);
-  this.renderer.setClearColor(0x000000, 0);
+  this.renderer.setClearColor(0xffffff, 0);
   this.renderer.domElement.id = "canvas";
   this.renderer.context.getProgramInfoLog = function () {
       return ''
   }; // muzzle
+
+  // effect = new THREE.AnaglyphEffect( this.renderer );
+  // effect.setSize( window.innerWidth, window.innerHeight );
+
+
   document.body.appendChild(this.renderer.domElement);
 
-  this.camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 1, 1000);
-  this.camera.position.set(0, 0, 50);
+  this.camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 1, 1500);
+  this.camera.position.set(0, 0, 500);
   this.scene = new THREE.Scene();
 
   this.container = new THREE.Object3D();
@@ -900,11 +1084,18 @@ World.prototype.setupEnvironment = function () {
 
   var geometry = new THREE.Geometry();
 
+  var zPos = -1000;
+
+  var inc = 1500 / particleCount;
+
   for (var i = 0; i < particleCount; i++) {
       geometry.vertices.push(new THREE.Vector3(
-      (Math.random() - 0.5) * 50, (Math.random() - 0.5) * 50, (Math.random() - 0.5) * 50));
+        (Math.random() - 0.5) * 1000,
+        (Math.random() - 0.5) * 1000,
+        (Math.random() - 0.5) * 1000));
       attributes.texIndex.value.push(i);
       attributes.color.value.push(new THREE.Color(0xffffff));
+      zPos += inc;
   }
 
   var particles = new THREE.PointCloud(geometry, material);
@@ -914,6 +1105,11 @@ World.prototype.setupEnvironment = function () {
 
 World.prototype.render = function () {
     this.container.rotation.y += 0.001;
+    // for (var i = 0; i < this.container.children.length; i++ ) {
+    //   this.container.children[i].position.z += 1;
+    //   if (this.container.children[i].position.z > 500)
+    //     this.container.children[i].position.z -= 1500;
+    // }
     this.renderer.render(this.scene, this.camera);
 };
 
@@ -925,7 +1121,7 @@ World.prototype.resize = function () {
 
 
 var world = new World();
-},{"./../bower_components/three.js/three.min.js":1,"./users":4}],3:[function(require,module,exports){
+},{"./../bower_components/three.js/three.min.js":1,"./anaglyph":2,"./users":5}],4:[function(require,module,exports){
 var THREE = require("./../bower_components/three.js/three.min.js");
 
 var users = require('./users').users;
@@ -990,7 +1186,7 @@ module.exports = function load () {
 };
 
 
-},{"./../bower_components/three.js/three.min.js":1,"./users":4}],4:[function(require,module,exports){
+},{"./../bower_components/three.js/three.min.js":1,"./users":5}],5:[function(require,module,exports){
 module.exports = {
   "users": [{
     "name": "Bixe Myr",
@@ -4914,4 +5110,4 @@ module.exports = {
     "id": "10101838976193761"
   }]
 }
-},{}]},{},[2,3,4]);
+},{}]},{},[2,3,4,5]);
