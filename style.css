@@ -20,7 +20,7 @@ body {
   text-align: center;
 }
 #container img {
-  max-width: 100%;
+  max-width: 90%;
 }
 #container #tagline {
   text-transform: uppercase;

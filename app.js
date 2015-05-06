@@ -2889,6 +2889,7 @@ module.exports = function(THREE) {
 },{}],15:[function(require,module,exports){
 var THREE = require("./../bower_components/three.js/three.min.js");
 require('./anaglyph')(THREE);
+require('./parallaxBarrier')(THREE);
 var users = require('./users').users;
 var dt = require('delaunay-triangulate');
 
@@ -2929,14 +2930,18 @@ World.prototype.setupEnvironment = function () {
       return ''
   }; // muzzle
 
-  // this.effect = new THREE.AnaglyphEffect(this.renderer);
-  // this.effect.setSize(this.width, this.height);
+  this.effect1 = new THREE.ParallaxBarrierEffect(this.renderer);
+  this.effect2 = new THREE.AnaglyphEffect(this.renderer);
+  this.effect1.setSize(this.width, this.height);
+  this.effect2.setSize(this.width, this.height);
+  this.useEffect = 0;
+
 
   this.clock = new THREE.Clock();
 
   document.body.appendChild(this.renderer.domElement);
 
-  this.camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 1, 2000);
+  this.camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 1, 3000);
   this.camera.position.set(0, 0, 700);
   this.scene = new THREE.Scene();
 
@@ -2945,7 +2950,7 @@ World.prototype.setupEnvironment = function () {
 
   var scene = this.scene;
 
-  var particleCount = 500 //users.length;
+  var particleCount = users.length;
 
   var uniforms = {
       texture: {
@@ -3006,15 +3011,10 @@ World.prototype.setupEnvironment = function () {
   var tris = dt(points);
 
   var a, b, c, f;
-  for (var i = 0; i < tris.length; i+= 4) {
+  for (var i = 0; i < tris.length; i+= 5) {
     f = new THREE.Face3(tris[i][0], tris[i][1] , tris[i][2]);
     geometry.faces.push(f);
   }
-
-
-  // find closest
-
-
 
   geometry.computeBoundingSphere();
 
@@ -3154,14 +3154,30 @@ World.prototype.shake = function(amt, speed) {
 }
 
 World.prototype.render = function () {
+  var e = this.clock.getElapsedTime() * 0.1;
   this.container.rotation.y += 0.0002;
   this.container.rotation.x -= 0.0001;
   this.container.rotation.z += 0.0002;
+  this.container.position.z = -500 * Math.sin(e);
   // this.cycleFaces(500);
   // this.cycleRandomFace(10);
   // this.fly();
-  this.shake(1, 0.01);
-  this.renderer.render(this.scene, this.camera);
+  this.shake(0.1, 0.01);
+
+  if (Math.random() > 0.99) {
+    this.useEffect += 0.1;
+  }
+
+  if (this.useEffect > 0) {
+    if (Math.random() > 0.5)
+      this.effect1.render(this.scene, this.camera);
+    else
+      this.effect2.render(this.scene, this.camera);
+
+    this.useEffect -= 0.01;
+  } else {
+    this.renderer.render(this.scene, this.camera);
+  }
 };
 
 World.prototype.resize = function () {
@@ -3169,13 +3185,199 @@ World.prototype.resize = function () {
     this.height = window.innerHeight;
 
     this.renderer.setSize(this.width, this.height);
+    this.effect1.setSize(this.width, this.height);
+    this.effect2.setSize(this.width, this.height);
     this.camera.aspect = this.width / this.height;
     this.camera.updateProjectionMatrix();
 };
 
 
 var world = new World();
-},{"./../bower_components/three.js/three.min.js":1,"./anaglyph":14,"./users":16,"delaunay-triangulate":13}],16:[function(require,module,exports){
+},{"./../bower_components/three.js/three.min.js":1,"./anaglyph":14,"./parallaxBarrier":16,"./users":17,"delaunay-triangulate":13}],16:[function(require,module,exports){
+module.exports = function(THREE) {
+  /**
+   * @author mrdoob / http://mrdoob.com/
+   * @author marklundin / http://mark-lundin.com/
+   * @author alteredq / http://alteredqualia.com/
+   */
+
+  THREE.ParallaxBarrierEffect = function(renderer) {
+
+    var eyeRight = new THREE.Matrix4();
+    var eyeLeft = new THREE.Matrix4();
+    var focalLength = 125;
+    var _aspect, _near, _far, _fov;
+
+    var _cameraL = new THREE.PerspectiveCamera();
+    _cameraL.matrixAutoUpdate = false;
+
+    var _cameraR = new THREE.PerspectiveCamera();
+    _cameraR.matrixAutoUpdate = false;
+
+    var _scene = new THREE.Scene();
+
+    var _camera = new THREE.PerspectiveCamera(53, 1, 1, 10000);
+    _camera.position.z = 2;
+    _scene.add(_camera);
+
+    var _params = {
+      minFilter: THREE.LinearFilter,
+      magFilter: THREE.NearestFilter,
+      format: THREE.RGBAFormat
+    };
+
+    var _renderTargetL = new THREE.WebGLRenderTarget(512, 512, _params);
+    var _renderTargetR = new THREE.WebGLRenderTarget(512, 512, _params);
+
+    var _material = new THREE.ShaderMaterial({
+
+      uniforms: {
+
+        "mapLeft": {
+          type: "t",
+          value: _renderTargetL
+        },
+        "mapRight": {
+          type: "t",
+          value: _renderTargetR
+        }
+
+      },
+
+      vertexShader: [
+
+        "varying vec2 vUv;",
+
+        "void main() {",
+
+        " vUv = vec2( uv.x, uv.y );",
+        " gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );",
+
+        "}"
+
+      ].join("\n"),
+
+      fragmentShader: [
+
+        "uniform sampler2D mapLeft;",
+        "uniform sampler2D mapRight;",
+        "varying vec2 vUv;",
+
+        "void main() {",
+
+        " vec2 uv = vUv;",
+
+        " if ( ( mod( gl_FragCoord.y, 2.0 ) ) > 1.00 ) {",
+
+        "   gl_FragColor = texture2D( mapLeft, uv );",
+
+        " } else {",
+
+        "   gl_FragColor = texture2D( mapRight, uv );",
+
+        " }",
+
+        "}"
+
+      ].join("\n")
+
+    });
+
+    var mesh = new THREE.Mesh(new THREE.PlaneBufferGeometry(2, 2), _material);
+    _scene.add(mesh);
+
+    this.setSize = function(width, height) {
+
+      _renderTargetL = new THREE.WebGLRenderTarget(width, height, _params);
+      _renderTargetR = new THREE.WebGLRenderTarget(width, height, _params);
+
+      _material.uniforms["mapLeft"].value = _renderTargetL;
+      _material.uniforms["mapRight"].value = _renderTargetR;
+
+      renderer.setSize(width, height);
+
+    };
+
+    /*
+     * Renderer now uses an asymmetric perspective projection
+     * (http://paulbourke.net/miscellaneous/stereographics/stereorender/).
+     *
+     * Each camera is offset by the eye seperation and its projection matrix is
+     * also skewed asymetrically back to converge on the same projection plane.
+     * Added a focal length parameter to, this is where the parallax is equal to 0.
+     */
+
+    this.render = function(scene, camera) {
+
+      scene.updateMatrixWorld();
+
+      if (camera.parent === undefined) camera.updateMatrixWorld();
+
+      var hasCameraChanged = (_aspect !== camera.aspect) || (_near !== camera.near) || (_far !== camera.far) || (_fov !== camera.fov);
+
+      if (hasCameraChanged) {
+
+        _aspect = camera.aspect;
+        _near = camera.near;
+        _far = camera.far;
+        _fov = camera.fov;
+
+        var projectionMatrix = camera.projectionMatrix.clone();
+        var eyeSep = focalLength / 30 * 0.5;
+        var eyeSepOnProjection = eyeSep * _near / focalLength;
+        var ymax = _near * Math.tan(THREE.Math.degToRad(_fov * 0.5));
+        var xmin, xmax;
+
+        // translate xOffset
+
+        eyeRight.elements[12] = eyeSep;
+        eyeLeft.elements[12] = -eyeSep;
+
+        // for left eye
+
+        xmin = -ymax * _aspect + eyeSepOnProjection;
+        xmax = ymax * _aspect + eyeSepOnProjection;
+
+        projectionMatrix.elements[0] = 2 * _near / (xmax - xmin);
+        projectionMatrix.elements[8] = (xmax + xmin) / (xmax - xmin);
+
+        _cameraL.projectionMatrix.copy(projectionMatrix);
+
+        // for right eye
+
+        xmin = -ymax * _aspect - eyeSepOnProjection;
+        xmax = ymax * _aspect - eyeSepOnProjection;
+
+        projectionMatrix.elements[0] = 2 * _near / (xmax - xmin);
+        projectionMatrix.elements[8] = (xmax + xmin) / (xmax - xmin);
+
+        _cameraR.projectionMatrix.copy(projectionMatrix);
+
+      }
+
+      _cameraL.matrixWorld.copy(camera.matrixWorld).multiply(eyeLeft);
+      _cameraL.position.copy(camera.position);
+      _cameraL.near = camera.near;
+      _cameraL.far = camera.far;
+
+      renderer.render(scene, _cameraL, _renderTargetL, true);
+
+      _cameraR.matrixWorld.copy(camera.matrixWorld).multiply(eyeRight);
+      _cameraR.position.copy(camera.position);
+      _cameraR.near = camera.near;
+      _cameraR.far = camera.far;
+
+      renderer.render(scene, _cameraR, _renderTargetR, true);
+
+      _scene.updateMatrixWorld();
+
+      renderer.render(_scene, _camera);
+
+    };
+
+  };
+}
+},{}],17:[function(require,module,exports){
 module.exports = {
   "users": [{
     "name": "Bixe Myr",
@@ -7099,4 +7301,4 @@ module.exports = {
     "id": "10101838976193761"
   }]
 }
-},{}]},{},[14,15,16]);
+},{}]},{},[14,15,16,17]);
