@@ -2955,7 +2955,7 @@ World.prototype.setupEnvironment = function () {
   var uniforms = {
       texture: {
           type: 't',
-          value: THREE.ImageUtils.loadTexture('images/unicorns.png')
+          value: THREE.ImageUtils.loadTexture('images/unicorns2.jpg')
       }
   };
 
@@ -2993,14 +2993,18 @@ World.prototype.setupEnvironment = function () {
 
   var points = [];
 
-  for (var i = 0; i < particleCount; i++) {
-    var pt = [
-      (Math.random() - 0.5) * 1000,
-      (Math.random() - 0.5) * 1000,
-      zPos
-    ];
+  var x, y, z, r = 750;
 
-    var vt = new THREE.Vector3(pt[0], pt[1], pt[2]);
+  for (var i = 0; i < particleCount; i++) {
+    do {
+      x = (Math.random() - 0.5) * r*2;
+      y = (Math.random() - 0.5) * r*2;
+      z = (Math.random() - 0.5) * r*2;
+    } while (((x*x) + (y*y) + (z*z)) > r*r)
+
+    var pt = [x, y, z];
+
+    var vt = new THREE.Vector3(x, y, z);
 
     points.push(pt);
     geometry.vertices.push(vt);
