@@ -31,7 +31,7 @@
       TextureSize = vec2(normSpriteTextureSize, normSpriteTextureSize);
 
       gl_Position = projectionMatrix * mvPosition;
-      gl_PointSize = 64.;
+      gl_PointSize = 10. + (30000. / gl_Position.w);
   }
 </script>
 <script id="fragmentShader" type="x-shader/x-fragment">
