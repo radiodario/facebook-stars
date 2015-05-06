@@ -66,7 +66,7 @@ World.prototype.setupEnvironment = function () {
   var uniforms = {
       texture: {
           type: 't',
-          value: THREE.ImageUtils.loadTexture('images/unicorns2.png')
+          value: THREE.ImageUtils.loadTexture('images/unicorns2.jpg')
       }
   };
 
