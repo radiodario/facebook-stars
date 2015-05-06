@@ -38,6 +38,9 @@ World.prototype.setupEnvironment = function () {
       return ''
   }; // muzzle
 
+  // this.effect = new THREE.AnaglyphEffect(this.renderer);
+  // this.effect.setSize(this.width, this.height);
+
   this.clock = new THREE.Clock();
 
   document.body.appendChild(this.renderer.domElement);
@@ -77,6 +80,15 @@ World.prototype.setupEnvironment = function () {
       transparent: true
   });
 
+
+  var pointMaterial = new THREE.PointCloudMaterial({
+    color: 0x09A7F7,
+    size: 20,
+    map: THREE.ImageUtils.loadTexture('images/disc.png'),
+    transparent: true
+  })
+
+
   var geometry = new THREE.Geometry();
 
   var zPos = -1000;
@@ -88,28 +100,34 @@ World.prototype.setupEnvironment = function () {
       (Math.random() - 0.5) * 1000,
       (Math.random() - 0.5) * 1000,
       zPos));
+
     attributes.texIndex.value.push(i);
     zPos += inc;
   }
 
-  // var a, b, c;
-  // for (var i = 0; i < particleCount; i++) {
-  //   a = i;
-  //   b = (i + 1) % particleCount;
-  //   c = (i + 2) % particleCount;
-  //   geometry.faces.push(new THREE.Face3(a, b, c));
-  // }
+  var a, b, c, f;
+  for (var i = 0; i < particleCount; i+=3) {
+    a = i;
+    b = (i + 1) % particleCount;
+    c = (i + 2) % particleCount;
+    f = new THREE.Face3(a, b, c);
+    geometry.faces.push(f);
+  }
 
-  // geometry.computeBoundingSphere();
+  geometry.computeBoundingSphere();
 
-  // var meshMaterial = new THREE.MeshBasicMaterial({
-  //   wireframe: true,
-  //   color: 0xFF0044
-  // });
+  var meshMaterial = new THREE.MeshBasicMaterial({
+    wireframe: true,
+    color: 0xFF0044,
+    transparent: true,
+    opacity: 0.2
+  });
 
-  // var mesh = new THREE.Mesh(geometry, meshMaterial);
+  this.meshGeom = geometry.clone();
 
-  // scene.add(mesh);
+  var mesh = new THREE.Mesh(this.meshGeom, meshMaterial);
+
+  this.container.add(mesh);
 
   // make a grid
   // for (var i = 0; i < particleCount; i++) {
@@ -125,7 +143,8 @@ World.prototype.setupEnvironment = function () {
   // }
 
 
-  var particles = new THREE.PointCloud(geometry, material);
+  var particles = new THREE.PointCloud(geometry, pointMaterial);
+  // var particles = new THREE.PointCloud(geometry, material);
   particles.sortParticles = true;
   this.particlesGeom = geometry;
   this.container.add(particles);
@@ -188,18 +207,22 @@ World.prototype.center = function() {
 }
 
 World.prototype.fly = function() {
-  var dt = 1;
+  var dt = 0.5;
   var i, l = this.particlesGeom.vertices.length;
   for (i = 0; i < l; i++) {
     p = this.particlesGeom.vertices[i];
+    mp = this.meshGeom.vertices[i];
     p.z += dt;
+    mp.z += dt;
 
     if (p.z > this.camera.position.z) {
       p.z += -1500;
+      mp.z += -1500;
     }
   }
 
   this.particlesGeom.verticesNeedUpdate = true;
+  this.meshGeom.verticesNeedUpdate = true;
 
 }
 
@@ -216,6 +239,7 @@ World.prototype.shake = function() {
 }
 
 World.prototype.render = function () {
+  this.container.rotation.y += 0.0001;
   // this.cycleFaces(500);
   this.cycleRandomFace(10);
   this.fly();
