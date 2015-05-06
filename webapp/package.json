@@ -18,7 +18,7 @@
     "url": "git://github.com/radiodario/facebook-stars.git"
   },
   "dependencies": {
-
+    "delaunay-triangulate": "^1.1.6"
   },
   "devDependencies": {
     "grunt": ">0.4.1",

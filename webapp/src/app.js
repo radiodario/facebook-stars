@@ -1,6 +1,8 @@
 var THREE = require('three.js');
 require('./anaglyph')(THREE);
 var users = require('./users').users;
+var dt = require('delaunay-triangulate');
+
 
 function World() {
   this.init();
@@ -45,7 +47,7 @@ World.prototype.setupEnvironment = function () {
 
   document.body.appendChild(this.renderer.domElement);
 
-  this.camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 1, 1500);
+  this.camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 1, 2000);
   this.camera.position.set(0, 0, 700);
   this.scene = new THREE.Scene();
 
@@ -54,7 +56,7 @@ World.prototype.setupEnvironment = function () {
 
   var scene = this.scene;
 
-  var particleCount = users.length;
+  var particleCount = 500 //users.length;
 
   var uniforms = {
       texture: {
@@ -95,24 +97,35 @@ World.prototype.setupEnvironment = function () {
 
   var inc = 1500 / particleCount;
 
-  for (var i = 0; i < particleCount; i++) {
-    geometry.vertices.push(new THREE.Vector3(
-      (Math.random() - 0.5) * 1000,
-      (Math.random() - 0.5) * 1000,
-      zPos));
+  var points = [];
 
+  for (var i = 0; i < particleCount; i++) {
+    var pt = [
+      (Math.random() - 0.5) * 1000,
+      (Math.random() - 0.5) * 1000,
+      zPos
+    ];
+
+    var vt = new THREE.Vector3(pt[0], pt[1], pt[2]);
+
+    points.push(pt);
+    geometry.vertices.push(vt);
     attributes.texIndex.value.push(i);
     zPos += inc;
   }
 
+  var tris = dt(points);
+
   var a, b, c, f;
-  for (var i = 0; i < particleCount; i+=3) {
-    a = i;
-    b = (i + 1) % particleCount;
-    c = (i + 2) % particleCount;
-    f = new THREE.Face3(a, b, c);
+  for (var i = 0; i < tris.length; i+= 4) {
+    f = new THREE.Face3(tris[i][0], tris[i][1] , tris[i][2]);
     geometry.faces.push(f);
   }
+
+
+  // find closest
+
+
 
   geometry.computeBoundingSphere();
 
@@ -227,23 +240,38 @@ World.prototype.fly = function() {
 }
 
 
-World.prototype.shake = function() {
-  var d = this.clock.getElapsedTime() * 10;
+World.prototype.shake = function(amt, speed) {
+  amt = amt || 1;
 
-  for (var i = 0; i < this.particlesGeom.vertices.length; i++) {
-    this.particlesGeom.vertices[i].x += 10*(Math.random() - 0.5) * Math.sin(d);
-    this.particlesGeom.vertices[i].y += 10*(Math.random() - 0.5) * Math.sin(d);
+  var d = this.clock.getElapsedTime() * speed;
+
+  var i, l = this.particlesGeom.vertices.length;
+  var p, mp;
+  var dx, dy;
+  for (i = 0; i < l; i++) {
+    p = this.particlesGeom.vertices[i];
+    mp = this.meshGeom.vertices[i];
+    dx = amt*(Math.random() - 0.5) * Math.sin(d);
+    dy = amt*(Math.random() - 0.5) * Math.sin(d);
+
+    p.x += dx;
+    p.y += dy;
+    mp.x += dx;
+    mp.y += dy;
   }
 
   this.particlesGeom.verticesNeedUpdate = true;
+  this.meshGeom.verticesNeedUpdate = true;
 }
 
 World.prototype.render = function () {
-  this.container.rotation.y += 0.0001;
+  this.container.rotation.y += 0.0002;
+  this.container.rotation.x -= 0.0001;
+  this.container.rotation.z += 0.0002;
   // this.cycleFaces(500);
-  this.cycleRandomFace(10);
-  this.fly();
-  // this.shake();
+  // this.cycleRandomFace(10);
+  // this.fly();
+  this.shake(1, 0.01);
   this.renderer.render(this.scene, this.camera);
 };
 
