@@ -1,5 +1,6 @@
 var THREE = require('three.js');
 require('./anaglyph')(THREE);
+require('./parallaxBarrier')(THREE);
 var users = require('./users').users;
 var dt = require('delaunay-triangulate');
 
@@ -40,14 +41,18 @@ World.prototype.setupEnvironment = function () {
       return ''
   }; // muzzle
 
-  // this.effect = new THREE.AnaglyphEffect(this.renderer);
-  // this.effect.setSize(this.width, this.height);
+  this.effect1 = new THREE.ParallaxBarrierEffect(this.renderer);
+  this.effect2 = new THREE.AnaglyphEffect(this.renderer);
+  this.effect1.setSize(this.width, this.height);
+  this.effect2.setSize(this.width, this.height);
+  this.useEffect = 0;
+
 
   this.clock = new THREE.Clock();
 
   document.body.appendChild(this.renderer.domElement);
 
-  this.camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 1, 2000);
+  this.camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 1, 3000);
   this.camera.position.set(0, 0, 700);
   this.scene = new THREE.Scene();
 
@@ -56,7 +61,7 @@ World.prototype.setupEnvironment = function () {
 
   var scene = this.scene;
 
-  var particleCount = 500 //users.length;
+  var particleCount = users.length;
 
   var uniforms = {
       texture: {
@@ -117,15 +122,10 @@ World.prototype.setupEnvironment = function () {
   var tris = dt(points);
 
   var a, b, c, f;
-  for (var i = 0; i < tris.length; i+= 4) {
+  for (var i = 0; i < tris.length; i+= 5) {
     f = new THREE.Face3(tris[i][0], tris[i][1] , tris[i][2]);
     geometry.faces.push(f);
   }
-
-
-  // find closest
-
-
 
   geometry.computeBoundingSphere();
 
@@ -265,14 +265,30 @@ World.prototype.shake = function(amt, speed) {
 }
 
 World.prototype.render = function () {
+  var e = this.clock.getElapsedTime() * 0.1;
   this.container.rotation.y += 0.0002;
   this.container.rotation.x -= 0.0001;
   this.container.rotation.z += 0.0002;
+  this.container.position.z = -500 * Math.sin(e);
   // this.cycleFaces(500);
   // this.cycleRandomFace(10);
   // this.fly();
-  this.shake(1, 0.01);
-  this.renderer.render(this.scene, this.camera);
+  this.shake(0.1, 0.01);
+
+  if (Math.random() > 0.99) {
+    this.useEffect += 0.1;
+  }
+
+  if (this.useEffect > 0) {
+    if (Math.random() > 0.5)
+      this.effect1.render(this.scene, this.camera);
+    else
+      this.effect2.render(this.scene, this.camera);
+
+    this.useEffect -= 0.01;
+  } else {
+    this.renderer.render(this.scene, this.camera);
+  }
 };
 
 World.prototype.resize = function () {
@@ -280,6 +296,8 @@ World.prototype.resize = function () {
     this.height = window.innerHeight;
 
     this.renderer.setSize(this.width, this.height);
+    this.effect1.setSize(this.width, this.height);
+    this.effect2.setSize(this.width, this.height);
     this.camera.aspect = this.width / this.height;
     this.camera.updateProjectionMatrix();
 };
