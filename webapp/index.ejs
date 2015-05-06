@@ -23,10 +23,12 @@
       float col = mod(texIndex, SpritesPerRow);
       float row = floor(texIndex / SpritesPerRow);
 
-      // where in the texture to start ()
-      TextureCoord = vec2((col*SpriteTextureSize)/2048., (row*SpriteTextureSize)/2048.);
+      float normSpriteTextureSize = SpriteTextureSize/2048.;
+
+      // where in the texture to start (on a range from 0 to 1)
+      TextureCoord = vec2(col*normSpriteTextureSize, row * normSpriteTextureSize);
       // TextureCoord = vec2(0., 0.);
-      TextureSize = vec2(SpriteTextureSize/2048., SpriteTextureSize/2048.);
+      TextureSize = vec2(normSpriteTextureSize, normSpriteTextureSize);
 
       gl_Position = projectionMatrix * mvPosition;
       gl_PointSize = 64.;
@@ -47,6 +49,7 @@
   }
 </script>
 <div id="canvas"></div>
+<div id="unit"></div>
 <script id="live-reload" src="http://localhost:35729/livereload.js"></script>
 <script src="app.js"></script>
 </body>

@@ -63,11 +63,7 @@ World.prototype.setupEnvironment = function () {
       texIndex: {
           type: 'f',
           value: []
-      },
-      color: {
-          type: 'c',
-          value: []
-      },
+      }
   };
 
   console.log(users.fragShader);
@@ -92,7 +88,6 @@ World.prototype.setupEnvironment = function () {
         (Math.random() - 0.5) * 1000,
         (Math.random() - 0.5) * 1000));
       attributes.texIndex.value.push(i);
-      attributes.color.value.push(new THREE.Color(0xffffff));
       zPos += inc;
   }
 
