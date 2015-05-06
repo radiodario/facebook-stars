@@ -1065,11 +1065,7 @@ World.prototype.setupEnvironment = function () {
       texIndex: {
           type: 'f',
           value: []
-      },
-      color: {
-          type: 'c',
-          value: []
-      },
+      }
   };
 
   console.log(users.fragShader);
@@ -1094,7 +1090,6 @@ World.prototype.setupEnvironment = function () {
         (Math.random() - 0.5) * 1000,
         (Math.random() - 0.5) * 1000));
       attributes.texIndex.value.push(i);
-      attributes.color.value.push(new THREE.Color(0xffffff));
       zPos += inc;
   }
 
@@ -1121,72 +1116,7 @@ World.prototype.resize = function () {
 
 
 var world = new World();
-},{"./../bower_components/three.js/three.min.js":1,"./anaglyph":2,"./users":5}],4:[function(require,module,exports){
-var THREE = require("./../bower_components/three.js/three.min.js");
-
-var users = require('./users').users;
-
-
-module.exports = function load () {
-
-  var textures = [];
-
-  var materials = users.slice(0, 16).map(function(u) {
-    var texture = THREE.ImageUtils.loadTexture( "images/" + u.id + ".jpg" );
-
-    textures.push(texture);
-
-    return new THREE.PointCloudMaterial({
-      size: 64,
-      // map: texture,
-      color: 0xffffff
-      // transparent: true
-    });
-
-
-
-
-  });
-
-
-  function buildFragmentShader() {
-
-    var r = "";
-
-    r += "uniform sampler2D textures[" + textures.length + "];\n";
-    r += "varying vec3 vColor;\n";
-    r += "varying float vTexIndex;\n";
-    r += "void main() {\n";
-    r += "vec4 startColor = vec4(vColor, 1.0);\n";
-    r += "vec4 finalColor;\n";
-    r += "int textureIndex = int(vTexIndex + 0.5);\n";
-
-    for (var i = 0; i < textures.length; i++) {
-      r += "if (textureIndex == " + i + ") {\n";
-      r += "  finalColor = texture2D(textures[" + i + "], gl_PointCoord);\n";
-      r += "}\n";
-    }
-
-    r += "gl_FragColor = startColor * finalColor;\n";
-    r += "}";
-
-    return r;
-
-  }
-
-
-
-  return {
-    materials : materials,
-    textures: textures,
-    fragShader: buildFragmentShader()
-  }
-
-
-};
-
-
-},{"./../bower_components/three.js/three.min.js":1,"./users":5}],5:[function(require,module,exports){
+},{"./../bower_components/three.js/three.min.js":1,"./anaglyph":2,"./users":4}],4:[function(require,module,exports){
 module.exports = {
   "users": [{
     "name": "Bixe Myr",
@@ -5110,4 +5040,4 @@ module.exports = {
     "id": "10101838976193761"
   }]
 }
-},{}]},{},[2,3,4,5]);
+},{}]},{},[2,3,4]);
