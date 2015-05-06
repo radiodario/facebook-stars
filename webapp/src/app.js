@@ -84,13 +84,32 @@ World.prototype.setupEnvironment = function () {
   var inc = 1500 / particleCount;
 
   for (var i = 0; i < particleCount; i++) {
-      geometry.vertices.push(new THREE.Vector3(
-        (Math.random() - 0.5) * 1000,
-        (Math.random() - 0.5) * 1000,
-        zPos));
-      attributes.texIndex.value.push(i);
-      zPos += inc;
+    geometry.vertices.push(new THREE.Vector3(
+      (Math.random() - 0.5) * 1000,
+      (Math.random() - 0.5) * 1000,
+      zPos));
+    attributes.texIndex.value.push(i);
+    zPos += inc;
   }
+
+  // var a, b, c;
+  // for (var i = 0; i < particleCount; i++) {
+  //   a = i;
+  //   b = (i + 1) % particleCount;
+  //   c = (i + 2) % particleCount;
+  //   geometry.faces.push(new THREE.Face3(a, b, c));
+  // }
+
+  // geometry.computeBoundingSphere();
+
+  // var meshMaterial = new THREE.MeshBasicMaterial({
+  //   wireframe: true,
+  //   color: 0xFF0044
+  // });
+
+  // var mesh = new THREE.Mesh(geometry, meshMaterial);
+
+  // scene.add(mesh);
 
   // make a grid
   // for (var i = 0; i < particleCount; i++) {
@@ -99,7 +118,7 @@ World.prototype.setupEnvironment = function () {
   //   var pos = new THREE.Vector3(
   //     -(500) + col * 32,
   //     -(500) + row * 32,
-  //     0
+  //     -800
   //     );
   //   geometry.vertices.push(pos)
   //   attributes.texIndex.value.push(i);
@@ -112,7 +131,29 @@ World.prototype.setupEnvironment = function () {
   this.container.add(particles);
 };
 
+World.prototype.cycleRandomFace = function(byHowMany) {
+  var randIdx = Math.random() * this.attributes.texIndex.value.length | 0;
+
+  this.attributes.texIndex.value[randIdx] = this.attributes.texIndex.value[randIdx] + byHowMany % this.attributes.texIndex.value.length;
+
+  this.attributes.texIndex.needsUpdate = true;
+
+}
+
 World.prototype.cycleFaces = function (interval) {
+
+  if (!this.e) {
+    this.e = 0;
+    this.oldE = 0;
+  }
+
+  this.e += this.clock.getDelta()*1000;
+
+  if (this.e < (this.oldE + interval)) {
+    return;
+  }
+
+  this.oldE = this.e;
 
   for (var i = 0; i < this.attributes.texIndex.value.length; i++) {
     this.attributes.texIndex.value[i] = this.attributes.texIndex.value[i]+1;
@@ -175,7 +216,8 @@ World.prototype.shake = function() {
 }
 
 World.prototype.render = function () {
-  //this.cycleFaces(100);
+  // this.cycleFaces(500);
+  this.cycleRandomFace(10);
   this.fly();
   // this.shake();
   this.renderer.render(this.scene, this.camera);
