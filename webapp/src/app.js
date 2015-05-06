@@ -28,21 +28,22 @@ World.prototype.setupEnvironment = function () {
       antialias: true,
       alpha: false
   });
-  this.renderer.setSize(window.innerWidth, window.innerHeight);
+  this.width = window.innerWidth;
+  this.height = window.innerHeight;
+
+  this.renderer.setSize(this.width, this.height);
   this.renderer.setClearColor(0xffffff, 0);
   this.renderer.domElement.id = "canvas";
   this.renderer.context.getProgramInfoLog = function () {
       return ''
   }; // muzzle
 
-  // effect = new THREE.AnaglyphEffect( this.renderer );
-  // effect.setSize( window.innerWidth, window.innerHeight );
-
+  this.clock = new THREE.Clock();
 
   document.body.appendChild(this.renderer.domElement);
 
   this.camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 1, 1500);
-  this.camera.position.set(0, 0, 500);
+  this.camera.position.set(0, 0, 700);
   this.scene = new THREE.Scene();
 
   this.container = new THREE.Object3D();
@@ -66,7 +67,7 @@ World.prototype.setupEnvironment = function () {
       }
   };
 
-  console.log(users.fragShader);
+  this.attributes = attributes;
 
   var material = new THREE.ShaderMaterial({
       uniforms: uniforms,
@@ -86,29 +87,106 @@ World.prototype.setupEnvironment = function () {
       geometry.vertices.push(new THREE.Vector3(
         (Math.random() - 0.5) * 1000,
         (Math.random() - 0.5) * 1000,
-        (Math.random() - 0.5) * 1000));
+        zPos));
       attributes.texIndex.value.push(i);
       zPos += inc;
   }
 
+  // make a grid
+  // for (var i = 0; i < particleCount; i++) {
+  //   var row = Math.floor(i/32);
+  //   var col = i % 32;
+  //   var pos = new THREE.Vector3(
+  //     -(500) + col * 32,
+  //     -(500) + row * 32,
+  //     0
+  //     );
+  //   geometry.vertices.push(pos)
+  //   attributes.texIndex.value.push(i);
+  // }
+
+
   var particles = new THREE.PointCloud(geometry, material);
   particles.sortParticles = true;
+  this.particlesGeom = geometry;
   this.container.add(particles);
 };
 
+World.prototype.cycleFaces = function (interval) {
+
+  for (var i = 0; i < this.attributes.texIndex.value.length; i++) {
+    this.attributes.texIndex.value[i] = this.attributes.texIndex.value[i]+1;
+    if (this.attributes.texIndex.value[i] > users.length) {
+      this.attributes.texIndex.value[i] = 0;
+    }
+  }
+
+  this.attributes.texIndex.needsUpdate = true;
+};
+
+World.prototype.center = function() {
+  var d = this.clock.getElapsedTime() * 10;
+
+  var p, l = this.particlesGeom.vertices.length;
+  var dx = 0.1;
+  var dy = 0.1;
+
+  for (var i = 0; i < l; i++) {
+    p = this.particlesGeom.vertices[i];
+    if (p.x > 0)
+      p.x -= dx;
+    else
+      p.x += dx;
+    if (p.y > 0)
+      p.y -= dy;
+    else
+      p.y += dy;
+  }
+
+  this.particlesGeom.verticesNeedUpdate = true;
+}
+
+World.prototype.fly = function() {
+  var dt = 1;
+  var i, l = this.particlesGeom.vertices.length;
+  for (i = 0; i < l; i++) {
+    p = this.particlesGeom.vertices[i];
+    p.z += dt;
+
+    if (p.z > this.camera.position.z) {
+      p.z += -1500;
+    }
+  }
+
+  this.particlesGeom.verticesNeedUpdate = true;
+
+}
+
+
+World.prototype.shake = function() {
+  var d = this.clock.getElapsedTime() * 10;
+
+  for (var i = 0; i < this.particlesGeom.vertices.length; i++) {
+    this.particlesGeom.vertices[i].x += 10*(Math.random() - 0.5) * Math.sin(d);
+    this.particlesGeom.vertices[i].y += 10*(Math.random() - 0.5) * Math.sin(d);
+  }
+
+  this.particlesGeom.verticesNeedUpdate = true;
+}
+
 World.prototype.render = function () {
-    this.container.rotation.y += 0.001;
-    // for (var i = 0; i < this.container.children.length; i++ ) {
-    //   this.container.children[i].position.z += 1;
-    //   if (this.container.children[i].position.z > 500)
-    //     this.container.children[i].position.z -= 1500;
-    // }
-    this.renderer.render(this.scene, this.camera);
+  //this.cycleFaces(100);
+  this.fly();
+  // this.shake();
+  this.renderer.render(this.scene, this.camera);
 };
 
 World.prototype.resize = function () {
-    this.renderer.setSize(window.innerWidth, window.innerHeight);
-    this.camera.aspect = window.innerWidth / window.innerHeight;
+    this.width = window.innerWidth;
+    this.height = window.innerHeight;
+
+    this.renderer.setSize(this.width, this.height);
+    this.camera.aspect = this.width / this.height;
     this.camera.updateProjectionMatrix();
 };
 
