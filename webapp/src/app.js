@@ -1,6 +1,7 @@
 var THREE = require('three.js');
 require('./anaglyph')(THREE);
 require('./parallaxBarrier')(THREE);
+require('./bokeh')(THREE);
 var users = require('./users').users;
 var dt = require('delaunay-triangulate');
 
@@ -47,6 +48,15 @@ World.prototype.setupEnvironment = function () {
   this.effect2.setSize(this.width, this.height);
   this.useEffect = 0;
 
+  this.material_depth = new THREE.MeshDepthMaterial();
+  this.shaderSettings = {
+    rings: 3,
+    samples: 4
+  };
+
+  this.postprocessing = { enabled : true };
+
+  this.initPostprocessing();
 
   this.clock = new THREE.Clock();
 
@@ -167,14 +177,58 @@ World.prototype.setupEnvironment = function () {
   this.container.add(particles);
 };
 
+World.prototype.initPostprocessing = function() {
+
+  this.postprocessing.scene = new THREE.Scene();
+
+  this.postprocessing.camera = new THREE.OrthographicCamera(
+      this.width / - 2, this.width / 2,
+      this.height / 2, this.height / - 2,
+      -10000, 10000 );
+  this.postprocessing.camera.position.z = 100;
+
+  this.postprocessing.scene.add( this.postprocessing.camera );
+
+  var pars = { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, format: THREE.RGBFormat };
+  this.postprocessing.rtTextureDepth = new THREE.WebGLRenderTarget( this.width, this.height, pars );
+  this.postprocessing.rtTextureColor = new THREE.WebGLRenderTarget( this.width, this.height, pars );
+
+
+
+  var bokeh_shader = THREE.BokehShader;
+
+  this.postprocessing.bokeh_uniforms = THREE.UniformsUtils.clone( bokeh_shader.uniforms );
+
+  this.postprocessing.bokeh_uniforms[ "tColor" ].value = this.postprocessing.rtTextureColor;
+  this.postprocessing.bokeh_uniforms[ "tDepth" ].value = this.postprocessing.rtTextureDepth;
+
+  this.postprocessing.bokeh_uniforms[ "textureWidth" ].value = this.width;
+  this.postprocessing.bokeh_uniforms[ "textureHeight" ].value = this.height;
+
+  this.postprocessing.materialBokeh = new THREE.ShaderMaterial( {
+    uniforms: this.postprocessing.bokeh_uniforms,
+    vertexShader: bokeh_shader.vertexShader,
+    fragmentShader: bokeh_shader.fragmentShader,
+    defines: {
+      RINGS: this.shaderSettings.rings,
+      SAMPLES: this.shaderSettings.samples
+    }
+  });
+
+  this.postprocessing.quad = new THREE.Mesh( new THREE.PlaneBufferGeometry( this.width, this.height ), this.postprocessing.materialBokeh );
+  this.postprocessing.quad.position.z = - 500;
+  this.postprocessing.scene.add( this.postprocessing.quad );
+
+};
+
+
 World.prototype.cycleRandomFace = function(byHowMany) {
   var randIdx = Math.random() * this.attributes.texIndex.value.length | 0;
 
   this.attributes.texIndex.value[randIdx] = this.attributes.texIndex.value[randIdx] + byHowMany % this.attributes.texIndex.value.length;
 
   this.attributes.texIndex.needsUpdate = true;
-
-}
+};
 
 World.prototype.cycleFaces = function (interval) {
 
@@ -221,7 +275,7 @@ World.prototype.center = function() {
   }
 
   this.particlesGeom.verticesNeedUpdate = true;
-}
+};
 
 World.prototype.fly = function() {
   var dt = 0.5;
@@ -240,9 +294,7 @@ World.prototype.fly = function() {
 
   this.particlesGeom.verticesNeedUpdate = true;
   this.meshGeom.verticesNeedUpdate = true;
-
-}
-
+};
 
 World.prototype.shake = function(amt, speed) {
   amt = amt || 1;
@@ -266,7 +318,7 @@ World.prototype.shake = function(amt, speed) {
 
   this.particlesGeom.verticesNeedUpdate = true;
   this.meshGeom.verticesNeedUpdate = true;
-}
+};
 
 World.prototype.render = function () {
   var e = this.clock.getElapsedTime() * 0.1;
@@ -279,20 +331,46 @@ World.prototype.render = function () {
   // this.fly();
   this.shake(0.1, 0.01);
 
-  if (Math.random() > 0.99) {
-    this.useEffect += 0.1;
-  }
+  if ( this.postprocessing.enabled ) {
 
-  if (this.useEffect > 0) {
-    if (Math.random() > 0.5)
-      this.effect1.render(this.scene, this.camera);
-    else
-      this.effect2.render(this.scene, this.camera);
+    this.renderer.clear();
 
-    this.useEffect -= 0.01;
+    // Render scene into texture
+    this.scene.overrideMaterial = null;
+    this.renderer.render( this.scene, this.camera, this.postprocessing.rtTextureColor, true );
+
+    // Render depth into texture
+    this.scene.overrideMaterial = this.material_depth;
+    this.renderer.render( this.scene, this.camera, this.postprocessing.rtTextureDepth, true );
+
+    // Render bokeh composite
+    this.renderer.render( this.postprocessing.scene, this.postprocessing.camera );
+
+
   } else {
-    this.renderer.render(this.scene, this.camera);
+
+    this.scene.overrideMaterial = null;
+
+    this.renderer.clear();
+    this.renderer.render( this.scene, this.camera );
+
   }
+
+
+  // if (Math.random() > 0.99) {
+  //   this.useEffect += 0.1;
+  // }
+
+  // if (this.useEffect > 0) {
+  //   if (Math.random() > 0.5)
+  //     this.effect1.render(this.scene, this.camera);
+  //   else
+  //     this.effect2.render(this.scene, this.camera);
+
+  //   this.useEffect -= 0.01;
+  // } else {
+  //   this.renderer.render(this.scene, this.camera);
+  // }
 };
 
 World.prototype.resize = function () {
