@@ -1,6 +1,9 @@
 var THREE = require('three.js');
 require('./anaglyph')(THREE);
+require('./parallaxBarrier')(THREE);
 var users = require('./users').users;
+var dt = require('delaunay-triangulate');
+
 
 function World() {
   this.init();
@@ -38,11 +41,18 @@ World.prototype.setupEnvironment = function () {
       return ''
   }; // muzzle
 
+  this.effect1 = new THREE.ParallaxBarrierEffect(this.renderer);
+  this.effect2 = new THREE.AnaglyphEffect(this.renderer);
+  this.effect1.setSize(this.width, this.height);
+  this.effect2.setSize(this.width, this.height);
+  this.useEffect = 0;
+
+
   this.clock = new THREE.Clock();
 
   document.body.appendChild(this.renderer.domElement);
 
-  this.camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 1, 1500);
+  this.camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 1, 3000);
   this.camera.position.set(0, 0, 700);
   this.scene = new THREE.Scene();
 
@@ -56,7 +66,7 @@ World.prototype.setupEnvironment = function () {
   var uniforms = {
       texture: {
           type: 't',
-          value: THREE.ImageUtils.loadTexture('images/unicorns.png')
+          value: THREE.ImageUtils.loadTexture('images/unicorns2.jpg')
       }
   };
 
@@ -77,39 +87,64 @@ World.prototype.setupEnvironment = function () {
       transparent: true
   });
 
+
+  var pointMaterial = new THREE.PointCloudMaterial({
+    color: 0x09A7F7,
+    size: 20,
+    map: THREE.ImageUtils.loadTexture('images/disc.png'),
+    transparent: true
+  })
+
+
   var geometry = new THREE.Geometry();
 
   var zPos = -1000;
 
   var inc = 1500 / particleCount;
 
+  var points = [];
+
+  var x, y, z, r = 750;
+
   for (var i = 0; i < particleCount; i++) {
-    geometry.vertices.push(new THREE.Vector3(
-      (Math.random() - 0.5) * 1000,
-      (Math.random() - 0.5) * 1000,
-      zPos));
+    do {
+      x = (Math.random() - 0.5) * r*2;
+      y = (Math.random() - 0.5) * r*2;
+      z = (Math.random() - 0.5) * r*2;
+    } while (((x*x) + (y*y) + (z*z)) > r*r)
+
+    var pt = [x, y, z];
+
+    var vt = new THREE.Vector3(x, y, z);
+
+    points.push(pt);
+    geometry.vertices.push(vt);
     attributes.texIndex.value.push(i);
     zPos += inc;
   }
 
-  // var a, b, c;
-  // for (var i = 0; i < particleCount; i++) {
-  //   a = i;
-  //   b = (i + 1) % particleCount;
-  //   c = (i + 2) % particleCount;
-  //   geometry.faces.push(new THREE.Face3(a, b, c));
-  // }
+  var tris = dt(points);
 
-  // geometry.computeBoundingSphere();
+  var a, b, c, f;
+  for (var i = 0; i < tris.length; i+= 5) {
+    f = new THREE.Face3(tris[i][0], tris[i][1] , tris[i][2]);
+    geometry.faces.push(f);
+  }
 
-  // var meshMaterial = new THREE.MeshBasicMaterial({
-  //   wireframe: true,
-  //   color: 0xFF0044
-  // });
+  geometry.computeBoundingSphere();
 
-  // var mesh = new THREE.Mesh(geometry, meshMaterial);
+  var meshMaterial = new THREE.MeshBasicMaterial({
+    wireframe: true,
+    color: 0xFF0044,
+    transparent: true,
+    opacity: 0.2
+  });
 
-  // scene.add(mesh);
+  this.meshGeom = geometry.clone();
+
+  var mesh = new THREE.Mesh(this.meshGeom, meshMaterial);
+
+  this.container.add(mesh);
 
   // make a grid
   // for (var i = 0; i < particleCount; i++) {
@@ -125,7 +160,8 @@ World.prototype.setupEnvironment = function () {
   // }
 
 
-  var particles = new THREE.PointCloud(geometry, material);
+  var particles = new THREE.PointCloud(geometry, pointMaterial);
+  // var particles = new THREE.PointCloud(geometry, material);
   particles.sortParticles = true;
   this.particlesGeom = geometry;
   this.container.add(particles);
@@ -188,39 +224,75 @@ World.prototype.center = function() {
 }
 
 World.prototype.fly = function() {
-  var dt = 1;
+  var dt = 0.5;
   var i, l = this.particlesGeom.vertices.length;
   for (i = 0; i < l; i++) {
     p = this.particlesGeom.vertices[i];
+    mp = this.meshGeom.vertices[i];
     p.z += dt;
+    mp.z += dt;
 
     if (p.z > this.camera.position.z) {
       p.z += -1500;
+      mp.z += -1500;
     }
   }
 
   this.particlesGeom.verticesNeedUpdate = true;
+  this.meshGeom.verticesNeedUpdate = true;
 
 }
 
 
-World.prototype.shake = function() {
-  var d = this.clock.getElapsedTime() * 10;
+World.prototype.shake = function(amt, speed) {
+  amt = amt || 1;
 
-  for (var i = 0; i < this.particlesGeom.vertices.length; i++) {
-    this.particlesGeom.vertices[i].x += 10*(Math.random() - 0.5) * Math.sin(d);
-    this.particlesGeom.vertices[i].y += 10*(Math.random() - 0.5) * Math.sin(d);
+  var d = this.clock.getElapsedTime() * speed;
+
+  var i, l = this.particlesGeom.vertices.length;
+  var p, mp;
+  var dx, dy;
+  for (i = 0; i < l; i++) {
+    p = this.particlesGeom.vertices[i];
+    mp = this.meshGeom.vertices[i];
+    dx = amt*(Math.random() - 0.5) * Math.sin(d);
+    dy = amt*(Math.random() - 0.5) * Math.sin(d);
+
+    p.x += dx;
+    p.y += dy;
+    mp.x += dx;
+    mp.y += dy;
   }
 
   this.particlesGeom.verticesNeedUpdate = true;
+  this.meshGeom.verticesNeedUpdate = true;
 }
 
 World.prototype.render = function () {
+  var e = this.clock.getElapsedTime() * 0.1;
+  this.container.rotation.y += 0.0002;
+  this.container.rotation.x -= 0.0001;
+  this.container.rotation.z += 0.0002;
+  this.container.position.z = -500 * Math.sin(e);
   // this.cycleFaces(500);
-  this.cycleRandomFace(10);
-  this.fly();
-  // this.shake();
-  this.renderer.render(this.scene, this.camera);
+  // this.cycleRandomFace(10);
+  // this.fly();
+  this.shake(0.1, 0.01);
+
+  if (Math.random() > 0.99) {
+    this.useEffect += 0.1;
+  }
+
+  if (this.useEffect > 0) {
+    if (Math.random() > 0.5)
+      this.effect1.render(this.scene, this.camera);
+    else
+      this.effect2.render(this.scene, this.camera);
+
+    this.useEffect -= 0.01;
+  } else {
+    this.renderer.render(this.scene, this.camera);
+  }
 };
 
 World.prototype.resize = function () {
@@ -228,6 +300,8 @@ World.prototype.resize = function () {
     this.height = window.innerHeight;
 
     this.renderer.setSize(this.width, this.height);
+    this.effect1.setSize(this.width, this.height);
+    this.effect2.setSize(this.width, this.height);
     this.camera.aspect = this.width / this.height;
     this.camera.updateProjectionMatrix();
 };
